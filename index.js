@@ -3,17 +3,28 @@ import select, { Separator } from "@inquirer/select";
 import { v4 as uuidv4 } from "uuid";
 import chalk from "chalk";
 import CliTable3 from "cli-table3";
-//Each expense should have date, category, amount, description,Unique id
-let expenses = [
-  {
-    id: uuidv4(),
-    name: "chees cake",
-    date: "12/20/2024",
-    amount: 3,
-    category: "food",
-    description: "injeras",
-  },
-];
+import fs from "fs";
+import path from "path";
+
+let expenses = [];
+(function () {
+  try {
+    const data = fs.readFileSync("expenseData.json", "utf-8");
+    expenses = JSON.parse(data);
+  } catch (error) {
+    console.error(error);
+  }
+})();
+
+function saveExpense() {
+  const expenseJsonData = JSON.stringify(expenses);
+  fs.writeFile("expenseData.json", expenseJsonData, (err) => {
+    if (err) {
+      console.log(err);
+    }
+  });
+}
+
 console.log(chalk.cyan("Welcome to Expense Tracker App"));
 console.log(chalk.cyan("Made by  Abenezer Haile"));
 console.log("");
@@ -36,7 +47,7 @@ function displayItems(lists) {
       chalk.cyan("DESCRIPTION"),
     ],
   });
-  lists.forEach((list, index) => {
+  lists?.forEach((list, index) => {
     const listArray = [
       `${index + 1}`,
       `${list.name.toUpperCase()}`,
@@ -111,56 +122,74 @@ async function removeExpense() {
   console.log(
     chalk.red("Enter the ID number of the Expense You Want to remove")
   );
-  const exepnseID = await input({ message: "EXPENSE ID NUMBER: " });
-  expenses = expenses.filter((expense) => expense == expense[exepnseID]);
-  displayItems(expenses);
-  await main();
-}
-
-async function updateExpense() {
-  console.log(chalk.cyan("Enter the Expense you want to update / edit"));
   let expenseId = await input({ message: "EXPENSE ID NUMBER: " });
-  expenseId = Number(expenseId);
 
+  expenseId = Number(expenseId);
   while (expenseId <= 0 || expenseId > expenses.length) {
     console.log(chalk.redBright("Invalid expense ID number"));
     expenseId = await input({ message: ":" });
   }
 
-  console.log(`Change Expense Name: `);
-  const newExpenseName = await input({ message: ":" });
-
-  console.log(`Change Expense Amount: `);
-  let newExpenseAmount = await input({ message: ":" });
-  while (isValidAmount(!newExpenseAmount)) {
-    console.log(chalk.redBright("Invaild amount number try again"));
-    newExpenseAmount = await input({ message: ":" });
-  }
-  console.log(`Change Expense Description: `);
-  const newExpenseDescription = await input({ message: "" });
-  console.log(newExpenseName, newExpenseAmount, newExpenseDescription);
-  expenses = expenses.map((expense) => {
-    console.log(expense === expenses[expenseId - 1]);
-    if (expense === expenses[expenseId - 1]) {
-      return {
-        ...expense,
-        name: newExpenseName,
-        amount: newExpenseAmount,
-        description: newExpenseDescription,
-      };
-    } else {
-      return expense;
-    }
-  });
+  expenses = expenses.filter((_, index) => index !== expenseId - 1);
   await main();
+}
+
+async function updateExpense() {
+  if (expenses.length > 0) {
+    console.log(chalk.cyan("Enter the Expense you want to update / edit"));
+    let expenseId = await input({ message: "EXPENSE ID NUMBER: " });
+    expenseId = Number(expenseId);
+
+    while (expenseId <= 0 || expenseId > expenses.length) {
+      console.log(chalk.redBright("Invalid expense ID number"));
+      expenseId = await input({ message: ":" });
+    }
+
+    console.log(`Change Expense Name: `);
+    const newExpenseName = await input({ message: ":" });
+
+    console.log(`Change Expense Amount: `);
+    let newExpenseAmount = await input({ message: ":" });
+    while (isValidAmount(!newExpenseAmount)) {
+      console.log(chalk.redBright("Invaild amount number try again"));
+      newExpenseAmount = await input({ message: ":" });
+    }
+    console.log(`Change Expense Description: `);
+    const newExpenseDescription = await input({ message: "" });
+    console.log(newExpenseName, newExpenseAmount, newExpenseDescription);
+    expenses = expenses.map((expense) => {
+      console.log(expense === expenses[expenseId - 1]);
+      if (expense === expenses[expenseId - 1]) {
+        return {
+          ...expense,
+          name: newExpenseName,
+          amount: newExpenseAmount,
+          description: newExpenseDescription,
+        };
+      } else {
+        return expense;
+      }
+    });
+    await main();
+  } else {
+    console.clear();
+    setTimeout(
+      () =>
+        console.log(
+          chalk.bgRed("\n The Expense List is empty please add items first")
+        ),
+      1000
+    );
+    await main();
+  }
 }
 
 function isValidAmount(input) {
   return /^\d+(\.\d+)?$/.test(input);
 }
 async function main() {
+  saveExpense();
   displayItems(expenses);
-
   console.log(
     chalk.magenta("Select a command") +
       chalk.green("( add, ") +
@@ -203,6 +232,7 @@ async function main() {
       break;
     case "remove":
       removeExpense();
+      break;
     case "update":
     case "edit":
       updateExpense();
