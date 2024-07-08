@@ -4,7 +4,6 @@ import { v4 as uuidv4 } from "uuid";
 import chalk from "chalk";
 import CliTable3 from "cli-table3";
 import fs from "fs";
-import path from "path";
 
 let expenses = [];
 (function () {
@@ -108,6 +107,7 @@ async function addExpense() {
   });
 
   expenses.push({
+    id: uuidv4(),
     name: name,
     date: expenseDate,
     category: category,
@@ -118,10 +118,19 @@ async function addExpense() {
   await main();
 }
 
-async function removeExpense(expenseId, expenseArrary) {
-  expenseArrary = expenseArrary?.filter((_, index) => index !== expenseId - 1);
-  return expenseArrary;
+async function removeExpense(expenseId, expenseArray) {
+  if (expenseArray && expenseArray.length > 0) {
+    const idToRemove = expenseArray[expenseId - 1]?.id; // Get the ID of the expense to remove
+    const filteredArray = expenseArray.filter(
+      (expense) => expense.id !== idToRemove
+    );
+    return filteredArray;
+  } else {
+    console.log(chalk.red("Expense list is empty."));
+    return expenseArray;
+  }
 }
+
 async function getExpenseIdRemove(tempArray) {
   console.log(
     chalk.red("Enter the ID number of the Expense You Want to remove")
@@ -129,7 +138,7 @@ async function getExpenseIdRemove(tempArray) {
   let expenseId = await input({ message: "EXPENSE ID NUMBER: " });
 
   expenseId = Number(expenseId);
-  while (tempArray <= 0 || tempArray > expenses.length) {
+  while (expenseId <= 0 || expenseId > tempArray.length) {
     console.log(chalk.redBright("Invalid expense ID number"));
     expenseId = await input({ message: ":" });
   }
@@ -195,20 +204,21 @@ function isValidAmount(input) {
 async function searchExpense() {
   console.clear();
   let searchCriteria = await select({
-    message: "By what you to want to search ",
+    message: "By what you want to search",
     choices: [
       {
         name: "name",
         value: "name",
-        description: "The name of the expense ",
+        description: "Search by name of the expense",
       },
       {
         name: "amount",
         value: "amount",
-        description: "Based the amount/payment/cost/expense",
+        description: "Search by amount of the expense",
       },
     ],
   });
+
   let searchTerm = "";
   switch (searchCriteria) {
     case "name":
@@ -220,59 +230,60 @@ async function searchExpense() {
       searchTerm = await input({
         message: "Enter the amount of the item you want to search: ",
       });
+      searchTerm = Number(searchTerm); // Convert to number for amount search
+      break;
     default:
       break;
   }
-  let tempArray = [];
-  if (typeof searchTerm === "string" || searchTerm instanceof String) {
-    const regexPattern = new RegExp(searchTerm, "i");
 
+  let tempArray = [];
+  if (searchCriteria === "name") {
+    const regexPattern = new RegExp(searchTerm, "i");
     tempArray = expenses.filter((expense) => regexPattern.test(expense.name));
-  } else if (typeof searchTerm === Number) {
-    searchTerm = Number(searchTerm);
+  } else if (searchCriteria === "amount" && !isNaN(searchTerm)) {
+    tempArray = expenses.filter((expense) => expense.amount === searchTerm);
   }
+
   displayItems(tempArray);
+
   const optionsForNewArray = await select({
-    message: "By what you to want to search ",
+    message: "Choose an action",
     choices: [
       {
         name: "Remove",
         value: "remove",
-        description: "This will remove the item above ",
+        description: "Remove the selected expense",
       },
       {
         name: "Update",
         value: "update",
-        description: "This will allow update the above expense",
+        description: "Update the selected expense",
       },
       {
         name: "Go back",
         value: "main",
-        description: "Go back to the main page",
-      },
-      {
-        name: "quit",
-        value: "quit",
-        description: "You will exit this application",
+        description: "Go back to main menu",
       },
     ],
   });
+
   switch (optionsForNewArray.trim().toLowerCase()) {
     case "remove":
-    case "delete":
       const expenseToBeRemovedID = await getExpenseIdRemove(tempArray);
-      const newArr = await removeExpense(expenseToBeRemovedID, expenses);
-      expenses = newArr;
-      saveExpense(expenses);
+      // Find the index in original `expenses` array corresponding to `tempArray[expenseToBeRemovedID - 1]`
+      const indexInExpenses = expenses.findIndex(
+        (expense) => expense.id === tempArray[expenseToBeRemovedID - 1]?.id
+      );
+      if (indexInExpenses !== -1) {
+        expenses.splice(indexInExpenses, 1); // Remove from `expenses`
+        saveExpense(expenses); // Save updated expenses
+      } else {
+        console.log(chalk.red("Expense not found in main list."));
+      }
       break;
     case "update":
-    case "edit":
       const expenseToUpdateID = await getExpenseIdToUpdate();
       await updateExpense(expenseToUpdateID);
-      break;
-    case "quit":
-      console.clear();
-      console.log("You have quitted this app");
       break;
     case "main":
       await main();
@@ -281,6 +292,7 @@ async function searchExpense() {
       break;
   }
 }
+
 async function main() {
   saveExpense(expenses);
   displayItems(expenses);
@@ -346,7 +358,10 @@ async function main() {
       break;
     case "search":
       if (expenses.length === 0) {
-        setTimeout(() => console.log(chalk("Empty list can't search")));
+        setTimeout(() => {
+          console.clear();
+          console.log(chalk("Empty list can't search"));
+        }, 100);
       }
       await searchExpense();
       break;
@@ -357,7 +372,7 @@ async function main() {
     default:
       break;
   }
-  //await main();
+  await main();
 }
 
 main();
