@@ -16,7 +16,7 @@ let expenses = [];
   }
 })();
 
-function saveExpense() {
+function saveExpense(expenses) {
   const expenseJsonData = JSON.stringify(expenses);
   fs.writeFile("expenseData.json", expenseJsonData, (err) => {
     if (err) {
@@ -118,33 +118,37 @@ async function addExpense() {
   await main();
 }
 
-async function removeExpense() {
+async function removeExpense(expenseId, expenseArrary) {
+  expenseArrary = expenseArrary?.filter((_, index) => index !== expenseId - 1);
+  return expenseArrary;
+}
+async function getExpenseIdRemove(tempArray) {
   console.log(
     chalk.red("Enter the ID number of the Expense You Want to remove")
   );
   let expenseId = await input({ message: "EXPENSE ID NUMBER: " });
 
   expenseId = Number(expenseId);
+  while (tempArray <= 0 || tempArray > expenses.length) {
+    console.log(chalk.redBright("Invalid expense ID number"));
+    expenseId = await input({ message: ":" });
+  }
+  return expenseId;
+}
+
+async function getExpenseIdToUpdate() {
+  console.log(chalk.cyan("Enter the Expense you want to update / edit"));
+  let expenseId = await input({ message: "EXPENSE ID NUMBER: " });
+  expenseId = Number(expenseId);
+
   while (expenseId <= 0 || expenseId > expenses.length) {
     console.log(chalk.redBright("Invalid expense ID number"));
     expenseId = await input({ message: ":" });
   }
-
-  expenses = expenses.filter((_, index) => index !== expenseId - 1);
-  await main();
+  return expenseId;
 }
-
-async function updateExpense() {
+async function updateExpense(expenseId) {
   if (expenses.length > 0) {
-    console.log(chalk.cyan("Enter the Expense you want to update / edit"));
-    let expenseId = await input({ message: "EXPENSE ID NUMBER: " });
-    expenseId = Number(expenseId);
-
-    while (expenseId <= 0 || expenseId > expenses.length) {
-      console.log(chalk.redBright("Invalid expense ID number"));
-      expenseId = await input({ message: ":" });
-    }
-
     console.log(`Change Expense Name: `);
     const newExpenseName = await input({ message: ":" });
 
@@ -187,8 +191,98 @@ async function updateExpense() {
 function isValidAmount(input) {
   return /^\d+(\.\d+)?$/.test(input);
 }
+
+async function searchExpense() {
+  console.clear();
+  let searchCriteria = await select({
+    message: "By what you to want to search ",
+    choices: [
+      {
+        name: "name",
+        value: "name",
+        description: "The name of the expense ",
+      },
+      {
+        name: "amount",
+        value: "amount",
+        description: "Based the amount/payment/cost/expense",
+      },
+    ],
+  });
+  let searchTerm = "";
+  switch (searchCriteria) {
+    case "name":
+      searchTerm = await input({
+        message: "Enter the name of the item you want to search: ",
+      });
+      break;
+    case "amount":
+      searchTerm = await input({
+        message: "Enter the amount of the item you want to search: ",
+      });
+    default:
+      break;
+  }
+  let tempArray = [];
+  if (typeof searchTerm === "string" || searchTerm instanceof String) {
+    const regexPattern = new RegExp(searchTerm, "i");
+
+    tempArray = expenses.filter((expense) => regexPattern.test(expense.name));
+  } else if (typeof searchTerm === Number) {
+    searchTerm = Number(searchTerm);
+  }
+  displayItems(tempArray);
+  const optionsForNewArray = await select({
+    message: "By what you to want to search ",
+    choices: [
+      {
+        name: "Remove",
+        value: "remove",
+        description: "This will remove the item above ",
+      },
+      {
+        name: "Update",
+        value: "update",
+        description: "This will allow update the above expense",
+      },
+      {
+        name: "Go back",
+        value: "main",
+        description: "Go back to the main page",
+      },
+      {
+        name: "quit",
+        value: "quit",
+        description: "You will exit this application",
+      },
+    ],
+  });
+  switch (optionsForNewArray.trim().toLowerCase()) {
+    case "remove":
+    case "delete":
+      const expenseToBeRemovedID = await getExpenseIdRemove(tempArray);
+      const newArr = await removeExpense(expenseToBeRemovedID, expenses);
+      expenses = newArr;
+      saveExpense(expenses);
+      break;
+    case "update":
+    case "edit":
+      const expenseToUpdateID = await getExpenseIdToUpdate();
+      await updateExpense(expenseToUpdateID);
+      break;
+    case "quit":
+      console.clear();
+      console.log("You have quitted this app");
+      break;
+    case "main":
+      await main();
+      break;
+    default:
+      break;
+  }
+}
 async function main() {
-  saveExpense();
+  saveExpense(expenses);
   displayItems(expenses);
   console.log(
     chalk.magenta("Select a command") +
@@ -223,23 +317,47 @@ async function main() {
         description:
           "search item from expense list based on (index, date, category, amount)",
       },
+      {
+        name: "quit",
+        value: "quit",
+        description: "to exit from this application",
+      },
     ],
   });
 
   switch (command.trim().toLowerCase()) {
     case "add":
-      addExpense();
+      await addExpense();
       break;
     case "remove":
-      removeExpense();
+    case "delete":
+      const expenseToBeRemovedID = await getExpenseIdRemove(expenses);
+      const newRemovedArray = await removeExpense(
+        expenseToBeRemovedID,
+        expenses
+      );
+      expenses = newRemovedArray;
+      await main();
       break;
     case "update":
     case "edit":
-      updateExpense();
+      const expenseToUpdateID = await getExpenseIdToUpdate();
+      await updateExpense(expenseToUpdateID);
       break;
+    case "search":
+      if (expenses.length === 0) {
+        setTimeout(() => console.log(chalk("Empty list can't search")));
+      }
+      await searchExpense();
+      break;
+    case "quit":
+      console.clear();
+      console.log("You have quitted this app");
+      return;
     default:
       break;
   }
+  //await main();
 }
 
 main();
