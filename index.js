@@ -1,19 +1,21 @@
-import { input, editor, number } from "@inquirer/prompts";
+import { input, editor, number, confirm } from "@inquirer/prompts";
 import select, { Separator } from "@inquirer/select";
 import { v4 as uuidv4 } from "uuid";
 import chalk from "chalk";
 import CliTable3 from "cli-table3";
 import fs from "fs";
+import { toNamespacedPath } from "path";
+import { networkInterfaces } from "os";
 
 let expenses = [];
-(function () {
-  try {
-    const data = fs.readFileSync("expenseData.json", "utf-8");
-    expenses = JSON.parse(data);
-  } catch (error) {
-    console.error(error);
-  }
-})();
+let userIncome = await getUserIncome();
+
+try {
+  const data = fs.readFileSync("expenseData.json", "utf-8");
+  expenses = JSON.parse(data);
+} catch (error) {
+  console.error(error);
+}
 
 function saveExpense(expenses) {
   const expenseJsonData = JSON.stringify(expenses);
@@ -52,7 +54,7 @@ function displayItems(lists) {
       `${list.name.toUpperCase()}`,
       `${list.date}`,
       `${list.category}`,
-      `${list.amount}`,
+      `$${list.amount}`,
       `${list.description}`,
     ];
     expenseTable.push([...listArray]);
@@ -292,10 +294,53 @@ async function searchExpense() {
       break;
   }
 }
+async function getUserIncome() {
+  let income = await input({ message: "Please Enter your monthly income" });
+  while (isNaN(income)) {
+    console.log(chalk.redBright("Invalid input:"));
+    income = await input({ message: "Please Enter your monthly income" });
+  }
 
+  console.log(chalk.yellow(`Is this your Monethly income $${income}`));
+  const answer = await confirm({ message: "continue? " });
+  if (!answer) {
+    return 0;
+  }
+
+  return income;
+}
+
+function calculateTotalExpenses(income, expenseArr) {
+  let totalExpenses = 0;
+  expenseArr.forEach((expense) => {
+    totalExpenses += expense.amount;
+  });
+
+  const netIcome = income - totalExpenses;
+  if (netIcome > 0) {
+    if (netIcome > income / 2) {
+      console.log(
+        chalk.greenBright(`You worth ${netIcome}  dollar after expenses`)
+      );
+      console.log(chalk.greenBright("Neat!! Nicely done! "));
+    } else {
+      console.log(chalk.green(`You worth $${netIcome} dollar after expenses`));
+      console.log(chalk.green(`You could do better`));
+    }
+  } else {
+    console.log(
+      chalk.redBright(`You are  dommed bro! You are - $${-netIcome} short`)
+    );
+    console.log(chalk.redBright(`horrible`));
+  }
+}
 async function main() {
   saveExpense(expenses);
   displayItems(expenses);
+  console.log(`Your Income is: ${userIncome}`);
+  console.log("");
+  calculateTotalExpenses(userIncome, expenses);
+  console.log("");
   console.log(
     chalk.magenta("Select a command") +
       chalk.green("( add, ") +
@@ -368,8 +413,9 @@ async function main() {
     case "quit":
       console.clear();
       console.log("You have quitted this app");
-      return;
+      return 0;
     default:
+      console.log("Invalid input bitches");
       break;
   }
   await main();
